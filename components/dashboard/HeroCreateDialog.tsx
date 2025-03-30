@@ -9,8 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 import { HeroImageUpload } from "@/components/dashboard/HeroImageUpload";
+import { Skill } from "@/lib/types";
 
 interface Role {
   id: number;
@@ -19,14 +20,24 @@ interface Role {
 
 interface HeroFormData {
   name: string;
-  role: string;
+  role_id: number | null;
   tier: string;
-  imageUrl: string;
+  imageUrl: string | null;
   description: string;
+  skills: Skill[];
 }
 
 const HERO_TIERS = ['S', 'A', 'B', 'C', 'D'] as const;
 type HeroTier = typeof HERO_TIERS[number];
+
+const SKILL_TYPES = [
+  "passive",
+  "skill 1",
+  "skill 2",
+  "skill 3",
+  "ultimate",
+  "special skill"
+] as const;
 
 interface HeroCreateDialogProps {
   onHeroCreated?: () => void;
@@ -39,10 +50,17 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [formData, setFormData] = useState<HeroFormData>({
     name: "",
-    role: "",
+    role_id: null,
     tier: "",
-    imageUrl: "",
+    imageUrl: null,
     description: "",
+    skills: [],
+  });
+  const [newSkill, setNewSkill] = useState<Partial<Skill>>({
+    id: "",
+    name: "",
+    description: "",
+    type: "passive",
   });
 
   useEffect(() => {
@@ -97,10 +115,51 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
     }));
   };
 
+  const handleSkillInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setNewSkill(prev => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleAddSkill = () => {
+    if (!newSkill.name || !newSkill.description || !newSkill.type) {
+      toast.error("Please fill in all skill fields");
+      return;
+    };
+
+    const skill: Skill = {
+      id: newSkill.id || `skill-${Date.now()}`,
+      name: newSkill.name,
+      description: newSkill.description,
+      type: newSkill.type as Skill["type"],
+    };
+
+    setFormData(prev => ({
+      ...prev,
+      skills: [...prev.skills, skill],
+    }));
+
+    setNewSkill({
+      id: "",
+      name: "",
+      description: "",
+      type: "passive"
+    });
+  };
+
+  const handleRemoveSkill = (skillId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      skills: prev.skills.filter(skill => skill.id !== skillId),
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.role || !formData.tier) {
+    if (!formData.name || !formData.role_id || !formData.tier) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -108,13 +167,6 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
     setIsSubmitting(true);
 
     try {
-      const { data: roleData, error: roleError } = await supabase
-        .from("roles")
-        .select("id")
-        .eq("role", formData.role)
-        .single();
-      if (roleError || !roleData) throw new Error("Role not found");
-
       let imageUrl = null;
       if (imageFile) {
         imageUrl = await handleImageUpload(imageFile);
@@ -122,10 +174,11 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
 
       const { error } = await supabase.from("heroes").insert({
         name: formData.name,
-        role_id: roleData.id,
+        role_id: formData.role_id,
         tier: formData.tier,
         image_url: imageUrl,
         description: formData.description || null,
+        skills: formData.skills.length > 0 ? formData.skills : null
       });
 
       if (error) throw error;
@@ -145,10 +198,17 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
   const resetForm = () => {
     setFormData({
       name: "",
-      role: "",
+      role_id: null,
       tier: "",
-      imageUrl: "",
-      description: ""
+      imageUrl: null,
+      description: "",
+      skills:[],
+    });
+    setNewSkill({
+      id: "",
+      name: "",
+      description: "",
+      type: "passive",
     });
     setImageFile(null);
     setIsDialogOpen(false);
@@ -161,7 +221,7 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
           <Plus className="h-4 w-4 mr-2" /> Create Hero
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Hero</DialogTitle>
           <DialogDescription>Fill out the details to add a new hero to the game.</DialogDescription>
@@ -182,10 +242,10 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
             <div className="space-y-2">
               <Label>Role</Label>
               <Select
-                value={formData.role}
+                value={formData.role_id?.toString() || ""}
                 onValueChange={(value) => setFormData(prev => ({
                   ...prev,
-                  role: value
+                  role_id: parseInt(value)
                 }))}
                 required
               >
@@ -196,7 +256,7 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
                   {roles.map(role => (
                     <SelectItem
                       key={role.id}
-                      value={role.role}
+                      value={role.id.toString()}
                     >
                       {role.role}
                     </SelectItem>
@@ -233,10 +293,6 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
               <HeroImageUpload
                 onImageSelect={(file) => {
                   setImageFile(file);
-                  setFormData(prev => ({
-                    ...prev,
-                    imageUrl: URL.createObjectURL(file)
-                  }));
                 }}
               />
             </div>
@@ -251,6 +307,79 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
               placeholder="Enter hero description"
               rows={3}
             />
+          </div>
+          <div className="space-y-4 border p-4 rounded-md">
+            <div className="flex justify-between items-center">
+              <h3 className="text-sm font-medium">Hero Skills</h3>
+            </div>
+            {formData.skills.length > 0 && (
+              <div className="space-y-2">
+                <Label>Current Skills</Label>
+                <div className="space-y-2 max-h-48 overflow-x-auto p-2 border rounded-md">
+                  {formData.skills.map(skill => (
+                    <div key={skill.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                      <div>
+                        <span className="font-medium">{skill.name}</span>
+                        <span className="text-xs text-gray-500 ml-2">({skill.type})</span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveSkill(skill.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Add New Skill</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  name="name"
+                  value={newSkill.name}
+                  onChange={handleSkillInputChange}
+                  placeholder="Skill name"
+                />
+                <Select
+                  value={newSkill.type}
+                  onValueChange={(value) => setNewSkill(prev => ({
+                    ...prev,
+                    type: value as Skill["type"]
+                  }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Skill type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SKILL_TYPES.map(type => (
+                      <SelectItem key={type} value={type}>
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Textarea
+                name="description"
+                value={newSkill.description}
+                onChange={handleSkillInputChange}
+                placeholder="Skill description"
+                rows={2}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddSkill}
+                className="w-full"
+              >
+                Add Skill
+              </Button>
+            </div>
           </div>
           <Button
             type="submit"

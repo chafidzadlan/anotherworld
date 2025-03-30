@@ -15,7 +15,7 @@ export default function Admin() {
           </Link>
           <h1 className="text-2xl font-bold text-center mb-4">Admin Dashboard</h1>
           <Tabs defaultValue="heroes" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-3 rounded-md">
               <TabsTrigger value="heroes">Heroes</TabsTrigger>
               <TabsTrigger value="item">Item</TabsTrigger>
               <TabsTrigger value="role">Role</TabsTrigger>
