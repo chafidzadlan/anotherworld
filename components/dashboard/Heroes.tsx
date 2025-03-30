@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Info, Loader2, MoreVertical, Pencil, Trash, X } from "lucide-react";
 import Image from "next/image";
@@ -45,35 +45,44 @@ export default function Heroes() {
           tier,
           image_url,
           description,
-          role_id,
           skills,
-          roles (role)
+          hero_roles(
+            role_id,
+            is_primary,
+            roles(id, name, description)
+          )
         `, { count: "exact" });
 
-      const trimmedSearch = searchTerm.trim().toLowerCase();
-
-      if (trimmedSearch) {
-        query = query.or(
-          `name.ilike.%${trimmedSearch}%`
-        );
+      if (searchTerm.trim()) {
+        query = query.ilike("name", `%${searchTerm.trim()}%`);
       }
 
       query = query.order("id").range(from, to);
 
       const { data, count, error } = await query;
-
       if (error) throw error;
+
+      setTotalHeroes(count || 0);
 
       if (count !== null) {
         setTotalHeroes(count);
       }
 
-      const heroesData: Hero[] = (data as unknown as HeroQueryResult[]).map(hero => ({
-        ...hero,
-        role: hero.roles?.role || "Unknown"
+      const processedHeroes: Hero[] = (data as unknown as HeroQueryResult[]).map(hero => ({
+        id: hero.id,
+        name: hero.name,
+        tier: hero.tier,
+        image_url: hero.image_url,
+        description: hero.description,
+        skills: hero.skills,
+        roles: hero.hero_roles.map(hr => ({
+          id: hr.role_id,
+          name: hr.roles.name,
+          isPrimary: hr.is_primary,
+        }))
       }));
 
-      setHeroes(heroesData);
+      setHeroes(processedHeroes);
     } catch (err) {
       toast.error("Failed to fetch heroes", {
         description: err instanceof Error ? err.message : "Unknown error"
@@ -83,14 +92,14 @@ export default function Heroes() {
     }
   };
 
-  const resetFilters = () => {
-    setSearchTerm("");
-    setCurrentPage(1);
-  };
-
   const handleViewHeroDetails = (hero: Hero) => {
     setSelectedHero(hero);
     setIsDetailDialogOpen(true);
+  };
+
+  const resetFilters = () => {
+    setSearchTerm("");
+    setCurrentPage(1);
   };
 
   const handleEditHero = () => {
@@ -200,12 +209,16 @@ export default function Heroes() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-semibold">{hero.name}</span>
-                          </div>
+                          <span className="font-semibold">{hero.name}</span>
                         </TableCell>
                         <TableCell>
-                          <span className={`text-gray-600 ${hero.role === "Unknown" ? "italic text-gray-400" : ""}`}>{hero.role}</span>
+                          {hero.roles.length > 0 ? (
+                            <span className="text-gray-600">
+                              {hero.roles.find(r => r.isPrimary)?.name} {hero.roles.find(r => !r.isPrimary)?.name}
+                            </span>
+                          ) : (
+                            <span className="italic text-gray-400">Unknown</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           {renderTierBadge(hero.tier)}

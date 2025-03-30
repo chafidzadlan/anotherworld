@@ -3,7 +3,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE roles (
     id SERIAL PRIMARY KEY,
-    role VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(50) NOT NULL UNIQUE,
     description TEXT,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -209,6 +209,84 @@ CREATE TRIGGER check_hero_image_type
 BEFORE INSERT ON storage.objects
 FOR EACH ROW
 EXECUTE FUNCTION validate_hero_image_type();
+
+-- Create a junction table for hero-role relationships
+CREATE TABLE hero_roles (
+    hero_id INTEGER REFERENCES heroes(id) ON DELETE CASCADE,
+    role_id INTEGER REFERENCES roles(id) ON DELETE CASCADE,
+    is_primary BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (hero_id, role_id)
+);
+
+-- Modify the heroes table to remove the role_id column
+ALTER TABLE heroes DROP COLUMN role_id;
+
+-- Add constraint to ensure at least one primary role per hero
+CREATE OR REPLACE FUNCTION ensure_primary_role()
+RETURNS TRIGGER AS $$
+DECLARE
+    primary_count INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO primary_count
+    FROM hero_roles
+    WHERE hero_id = NEW.hero_id AND is_primary = TRUE;
+
+    IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+        IF NEW.is_primary = TRUE THEN
+            -- Set all other roles for this hero to non-primary
+            UPDATE hero_roles
+            SET is_primary = FALSE
+            WHERE hero_id = NEW.hero_id AND role_id != NEW.role_id;
+        ELSIF primary_count = 0 THEN
+            -- Ensure at least one primary role
+            NEW.is_primary = TRUE;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER ensure_hero_primary_role
+BEFORE INSERT OR UPDATE ON hero_roles
+FOR EACH ROW
+EXECUTE FUNCTION ensure_primary_role();
+
+-- Trigger to check maximum 3 roles per hero
+CREATE OR REPLACE FUNCTION check_max_roles()
+RETURNS TRIGGER AS $$
+DECLARE
+    role_count INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO role_count
+    FROM hero_roles
+    WHERE hero_id = NEW.hero_id;
+
+    IF role_count > 3 THEN
+        RAISE EXCEPTION 'Heroes cannot have more than 3 roles';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER enforce_max_roles
+AFTER INSERT ON hero_roles
+FOR EACH ROW
+EXECUTE FUNCTION check_max_roles();
+
+-- Enable RLS for hero_roles
+ALTER TABLE hero_roles ENABLE ROW LEVEL SECURITY;
+
+-- Policies for hero_roles
+CREATE POLICY "Hero roles readable by everyone"
+ON hero_roles FOR SELECT
+USING (true);
+
+CREATE POLICY "Hero roles modifiable only by authenticated users"
+ON hero_roles FOR ALL
+USING (auth.role() = 'authenticated');
 
 -- Create a junction table for hero-role relationships
 CREATE TABLE hero_roles (

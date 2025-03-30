@@ -1,8 +1,8 @@
 "use client"
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -27,6 +27,22 @@ export function HeroDetailDialog({ hero, open, onOpenChange }: HeroDetailDialogP
     B: "border-blue-400 text-blue-600 bg-blue-50",
     C: "border-gray-400 text-gray-600 bg-gray-50",
     D: "border-red-400 text-red-600 bg-red-50",
+  };
+
+  const roleColors = {
+    "Fighter": "bg-red-100 text-red-600 border-red-200",
+    "Assassin": "bg-purple-100 text-purple-600 border-purple-200",
+    "Mage": "bg-blue-100 text-blue-600 border-blue-200",
+    "Tank": "bg-green-100 text-green-600 border-green-200",
+    "Support": "bg-yellow-100 text-yellow-600 border-yellow-200",
+    "Marksman": "bg-orange-100 text-orange-600 border-orange-200"
+  };
+
+  const getRoleBadgeStyle = (roleName: string, isPrimary: boolean) => {
+    const baseStyle = roleColors[roleName as keyof typeof roleColors] || "bg-gray-100 text-gray-600 border-gray-200";
+    return isPrimary
+      ? `${baseStyle} font-semibold border-2`
+      : `${baseStyle}`;
   };
 
   const skillsByType = skills.reduce<Record<string, Skill[]>>((acc, skill) => {
@@ -65,7 +81,6 @@ export function HeroDetailDialog({ hero, open, onOpenChange }: HeroDetailDialogP
               >
                 {hero.tier}
               </Badge>
-              <Badge variant="outline">{hero.role}</Badge>
             </div>
           </DialogTitle>
         </DialogHeader>
@@ -86,6 +101,16 @@ export function HeroDetailDialog({ hero, open, onOpenChange }: HeroDetailDialogP
                 </div>
               )}
               <div className="flex-1">
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {hero.roles.map(role => (
+                    <Badge
+                      key={role.id}
+                      className={getRoleBadgeStyle(role.name, role.isPrimary)}
+                    >
+                      {role.name}{role.isPrimary && " (Primary)"}
+                    </Badge>
+                  ))}
+                </div>
                 <p className="text-sm text-muted-foreground">{hero.description || "No description available."}</p>
               </div>
             </div>

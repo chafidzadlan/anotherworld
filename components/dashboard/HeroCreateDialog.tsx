@@ -1,26 +1,28 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Loader2, Plus, X } from "lucide-react";
 import { HeroImageUpload } from "@/components/dashboard/HeroImageUpload";
-import { Skill } from "@/lib/types";
-
-interface Role {
-  id: number;
-  role: string;
-}
+import { Skill, Role } from "@/lib/types";
 
 interface HeroFormData {
   name: string;
-  role_id: number | null;
+  roles: {
+    id: number;
+    name: string;
+    isPrimary: boolean;
+  }[];
   tier: string;
   imageUrl: string | null;
   description: string;
@@ -50,7 +52,7 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [formData, setFormData] = useState<HeroFormData>({
     name: "",
-    role_id: null,
+    roles: [],
     tier: "",
     imageUrl: null,
     description: "",
@@ -71,7 +73,7 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
     try {
       const { data, error } = await supabase
         .from("roles")
-        .select("id, role")
+        .select("id, name, description")
         .order("id", { ascending: true });
       if (error) throw error;
 
@@ -113,6 +115,37 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
       ...prev,
       [name]: value,
     }));
+  };
+
+  const handleRoleSelect = (roleId: number, roleName: string) => {
+    setFormData(prev => {
+      const roleIndex = prev.roles.findIndex(r => r.id === roleId);
+      let updatedRoles;
+      if (roleIndex >= 0) {
+        updatedRoles = prev.roles.filter(r => r.id !== roleId);
+      } else {
+        if (prev.roles.length >= 3) {
+          toast.error("Maximum 3 roles can be selected");
+          return prev;
+        }
+
+        const isPrimary = prev.roles.length === 0;
+        updatedRoles = [...prev.roles, { id: roleId, name: roleName, isPrimary }];
+      }
+
+      return { ...prev, roles: updatedRoles };
+    });
+  };
+
+  const handleSetPrimaryRole = (roleId: number) => {
+    setFormData(prev => {
+      const updatedRoles = prev.roles.map(role => ({
+        ...role,
+        isPrimary: role.id === roleId
+      }));
+
+      return { ...prev, roles: updatedRoles };
+    });
   };
 
   const handleSkillInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -159,9 +192,24 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.role_id || !formData.tier) {
+    if (!formData.name || formData.roles.length === 0 || !formData.tier) {
       toast.error("Please fill in all required fields");
       return;
+    }
+
+    if (formData.roles.length > 3) {
+      toast.error("Maximum 3 roles can be selected");
+      return;
+    }
+
+    if (!formData.roles.some(r => r.isPrimary)) {
+      setFormData(prev => {
+        const updatedRoles = [...prev.roles];
+        if (updatedRoles.length > 0) {
+          updatedRoles[0].isPrimary = true;
+        }
+        return { ...prev, roles: updatedRoles };
+      });
     }
 
     setIsSubmitting(true);
@@ -172,16 +220,31 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
         imageUrl = await handleImageUpload(imageFile);
       };
 
-      const { error } = await supabase.from("heroes").insert({
-        name: formData.name,
-        role_id: formData.role_id,
-        tier: formData.tier,
-        image_url: imageUrl,
-        description: formData.description || null,
-        skills: formData.skills.length > 0 ? formData.skills : null
-      });
+      const { data: heroData, error: heroError } = await supabase
+        .from("heroes")
+        .insert({
+          name: formData.name,
+          tier: formData.tier,
+          image_url: imageUrl,
+          description: formData.description || null,
+          skills: formData.skills.length > 0 ? formData.skills : null
+        })
+        .select("id")
+        .single();
 
-      if (error) throw error;
+      if (heroError) throw heroError;
+
+      const heroRolesData = formData.roles.map(role => ({
+        hero_id: heroData.id,
+        role_id: role.id,
+        is_primary: role.isPrimary
+      }));
+
+      const { error: rolesError } = await supabase
+        .from("hero_roles")
+        .insert(heroRolesData);
+
+      if (rolesError) throw rolesError;
 
       toast.success("Hero created successfully");
       resetForm();
@@ -198,7 +261,7 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
   const resetForm = () => {
     setFormData({
       name: "",
-      role_id: null,
+      roles: [],
       tier: "",
       imageUrl: null,
       description: "",
@@ -240,33 +303,6 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label>Role</Label>
-              <Select
-                value={formData.role_id?.toString() || ""}
-                onValueChange={(value) => setFormData(prev => ({
-                  ...prev,
-                  role_id: parseInt(value)
-                }))}
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select hero role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roles.map(role => (
-                    <SelectItem
-                      key={role.id}
-                      value={role.id.toString()}
-                    >
-                      {role.role}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
               <Label>Tier</Label>
               <Select
                 value={formData.tier}
@@ -288,6 +324,69 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Roles (Select up to 3)</Label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {formData.roles.map(role => (
+                <Badge
+                  key={role.id}
+                  variant={role.isPrimary ? "default" : "outline"}
+                  className="flex items-center gap-1 px-2 py-1"
+                >
+                  <span>{role.name}</span>
+                  {role.isPrimary && <span className="text-xs">(Primary)</span>}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-4 w-4 p-0 ml-1"
+                    onClick={() => {
+                      const updatedRoles = formData.roles.filter(r => r.id !== role.id);
+                      setFormData(prev => ({ ...prev, roles: updatedRoles }));
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              ))}
+            </div>
+            <ScrollArea className="h-40 border rounded-md p-2">
+              {roles.map(role => {
+                const isSelected = formData.roles.some(r => r.id === role.id);
+                const isPrimary = formData.roles.find(r => r.id === role.id)?.isPrimary || false;
+
+                return (
+                  <div key={role.id} className="flex items-center justify-between py-2 px-1 border-b last:border-0">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`role-${role.id}`}
+                        checked={isSelected}
+                        onCheckedChange={() => handleRoleSelect(role.id, role.name)}
+                      />
+                      <Label htmlFor={`role-${role.id}`} className="font-normal cursor-pointer">
+                        {role.name}
+                      </Label>
+                    </div>
+                    {isSelected && (
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id={`primary-${role.id}`}
+                          checked={isPrimary}
+                          onCheckedChange={() => handleSetPrimaryRole(role.id)}
+                          disabled={!isSelected}
+                        />
+                        <Label htmlFor={`primary-${role.id}`} className="text-xs font-normal cursor-pointer">
+                          Primary
+                        </Label>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </ScrollArea>
+          </div>
+          <div className="grid grid-cols-1 gap-4">
             <div className="space-y-2">
               <Label>Hero Image</Label>
               <HeroImageUpload
