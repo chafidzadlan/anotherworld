@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Loader2, Plus, X } from "lucide-react";
 import { HeroImageUpload } from "@/components/dashboard/HeroImageUpload";
-import { Skill, Role } from "@/lib/types";
+import type { Skill, Role } from "@/lib/types";
 
 interface HeroFormData {
   name: string;
@@ -30,7 +31,7 @@ interface HeroFormData {
 }
 
 const HERO_TIERS = ['S', 'A', 'B', 'C', 'D'] as const;
-type HeroTier = typeof HERO_TIERS[number];
+type HeroTier = (typeof HERO_TIERS)[number];
 
 const SKILL_TYPES = [
   "passive",
@@ -111,18 +112,18 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
   };
 
   const handleRoleSelect = (roleId: number, roleName: string) => {
-    setFormData(prev => {
-      const roleIndex = prev.roles.findIndex(r => r.id === roleId);
+    setFormData((prev) => {
+      const roleIndex = prev.roles.findIndex((r) => r.id === roleId);
       let updatedRoles;
       if (roleIndex >= 0) {
-        updatedRoles = prev.roles.filter(r => r.id !== roleId);
+        updatedRoles = prev.roles.filter((r) => r.id !== roleId);
       } else {
         if (prev.roles.length >= 3) {
           toast.error("Maximum 3 roles can be selected");
@@ -138,8 +139,8 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
   };
 
   const handleSetPrimaryRole = (roleId: number) => {
-    setFormData(prev => {
-      const updatedRoles = prev.roles.map(role => ({
+    setFormData((prev) => {
+      const updatedRoles = prev.roles.map((role) => ({
         ...role,
         isPrimary: role.id === roleId
       }));
@@ -150,7 +151,7 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
 
   const handleSkillInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setNewSkill(prev => ({
+    setNewSkill((prev) => ({
       ...prev,
       [name]: value,
     }));
@@ -169,7 +170,7 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
       type: newSkill.type as Skill["type"],
     };
 
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       skills: [...prev.skills, skill],
     }));
@@ -183,9 +184,9 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
   };
 
   const handleRemoveSkill = (skillId: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      skills: prev.skills.filter(skill => skill.id !== skillId),
+      skills: prev.skills.filter((skill) => skill.id !== skillId),
     }));
   };
 
@@ -202,8 +203,8 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
       return;
     }
 
-    if (!formData.roles.some(r => r.isPrimary)) {
-      setFormData(prev => {
+    if (!formData.roles.some((r) => r.isPrimary)) {
+      setFormData((prev) => {
         const updatedRoles = [...prev.roles];
         if (updatedRoles.length > 0) {
           updatedRoles[0].isPrimary = true;
@@ -227,17 +228,17 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
           tier: formData.tier,
           image_url: imageUrl,
           description: formData.description || null,
-          skills: formData.skills.length > 0 ? formData.skills : null
+          skills: formData.skills.length > 0 ? formData.skills : null,
         })
         .select("id")
         .single();
 
       if (heroError) throw heroError;
 
-      const heroRolesData = formData.roles.map(role => ({
+      const heroRolesData = formData.roles.map((role) => ({
         hero_id: heroData.id,
         role_id: role.id,
-        is_primary: role.isPrimary
+        is_primary: role.isPrimary,
       }));
 
       const { error: rolesError } = await supabase
@@ -265,7 +266,7 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
       tier: "",
       imageUrl: null,
       description: "",
-      skills:[],
+      skills: [],
     });
     setNewSkill({
       id: "",
@@ -306,7 +307,7 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
               <Label>Tier</Label>
               <Select
                 value={formData.tier}
-                onValueChange={(value) => setFormData(prev => ({
+                onValueChange={(value) => setFormData((prev) => ({
                   ...prev,
                   tier: value as HeroTier,
                 }))}
@@ -316,7 +317,7 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
                   <SelectValue placeholder="Select hero tier" />
                 </SelectTrigger>
                 <SelectContent>
-                  {HERO_TIERS.map(tier => (
+                  {HERO_TIERS.map((tier) => (
                     <SelectItem key={tier} value={tier}>
                       {tier} Tier
                     </SelectItem>
@@ -328,7 +329,7 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
           <div className="space-y-2">
             <Label>Roles (Select up to 3)</Label>
             <div className="flex flex-wrap gap-2 mb-2">
-              {formData.roles.map(role => (
+              {formData.roles.map((role) => (
                 <Badge
                   key={role.id}
                   variant={role.isPrimary ? "default" : "outline"}
@@ -342,8 +343,8 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
                     size="sm"
                     className="h-4 w-4 p-0 ml-1"
                     onClick={() => {
-                      const updatedRoles = formData.roles.filter(r => r.id !== role.id);
-                      setFormData(prev => ({ ...prev, roles: updatedRoles }));
+                      const updatedRoles = formData.roles.filter((r) => r.id !== role.id);
+                      setFormData((prev) => ({ ...prev, roles: updatedRoles }));
                     }}
                   >
                     <X className="h-3 w-3" />
@@ -352,9 +353,9 @@ export function HeroCreateDialog({ onHeroCreated }: HeroCreateDialogProps) {
               ))}
             </div>
             <ScrollArea className="h-40 border rounded-md p-2">
-              {roles.map(role => {
-                const isSelected = formData.roles.some(r => r.id === role.id);
-                const isPrimary = formData.roles.find(r => r.id === role.id)?.isPrimary || false;
+              {roles.map((role) => {
+                const isSelected = formData.roles.some((r) => r.id === role.id);
+                const isPrimary = formData.roles.find((r) => r.id === role.id)?.isPrimary || false;
 
                 return (
                   <div key={role.id} className="flex items-center justify-between py-2 px-1 border-b last:border-0">
