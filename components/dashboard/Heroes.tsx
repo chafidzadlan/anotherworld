@@ -12,6 +12,7 @@ import { Info, Loader2, MoreVertical, Pencil, Trash, X } from "lucide-react";
 import Image from "next/image";
 import { HeroCreateDialog } from "@/components/dashboard/HeroCreateDialog";
 import { HeroDetailDialog } from "@/components/dashboard/HeroDetailDialog";
+import { HeroEditDialog } from "@/components/dashboard/HeroEditDialog";
 import type { Hero, HeroQueryResult } from "@/lib/types";
 import { Pagination } from "@/components/Pagination";
 
@@ -25,6 +26,7 @@ export default function Heroes() {
   const [totalHeroes, setTotalHeroes] = useState(0);
   const [selectedHero, setSelectedHero] = useState<Hero | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchHeroes();
@@ -97,21 +99,20 @@ export default function Heroes() {
     setIsDetailDialogOpen(true);
   };
 
-  const resetFilters = () => {
-    setSearchTerm("");
-    setCurrentPage(1);
-  };
-
-  const handleEditHero = () => {
-    toast.info("Coming Soon", {
-      description: "Edit hero functionality will be available soon!",
-    });
+  const handleEditHero = (hero: Hero) => {
+    setSelectedHero(hero);
+    setIsEditDialogOpen(true);
   };
 
   const handleDeleteHero = () => {
     toast.info("Coming Soon", {
       description: "Delete hero functionality will be available soon!",
     });
+  };
+
+  const resetFilters = () => {
+    setSearchTerm("");
+    setCurrentPage(1);
   };
 
   const renderTierBadge = (tier: string) => {
@@ -200,7 +201,7 @@ export default function Heroes() {
                               alt={hero.name}
                               width={64}
                               height={64}
-                              className="w-16 h-16 object-cover rounded-lg shadow-sm"
+                              className="w-16 h-16 object-cover rounded-4xl shadow-sm"
                             />
                           ) : (
                             <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center text-gray-500">
@@ -236,7 +237,7 @@ export default function Heroes() {
                               <DropdownMenuItem onClick={() => handleViewHeroDetails(hero)}>
                                 <Info className="h-4 w-4 mr-2" /> Details
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleEditHero()}>
+                              <DropdownMenuItem onClick={() => handleEditHero(hero)}>
                                 <Pencil className="h-4 w-4 mr-2" /> Edit Hero
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleDeleteHero()}>
@@ -263,6 +264,12 @@ export default function Heroes() {
         hero={selectedHero}
         open={isDetailDialogOpen}
         onOpenChange={setIsDetailDialogOpen}
+      />
+      <HeroEditDialog
+        hero={selectedHero}
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        onHeroUpdated={fetchHeroes}
       />
     </>
   );
